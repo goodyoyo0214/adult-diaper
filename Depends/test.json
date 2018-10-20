@@ -1,0 +1,61 @@
+{
+			"type": "embedded-code",
+			"id": "f03e3f7f-07b3-4a67-a833-1865b0579b62",
+			"attributes": {
+				"zip_detected": "75052",
+				"embedded-id": 174,
+				"active": true,
+				"widget-type": 2,
+				"eshop-id": 14,
+				"no-available-message": "We're sorry, the product is not available",
+				"selector": 1,
+				"primary-master": "",
+				"not-selected-retailers": "214,227,230,250,258,298,235,218,256,259,240,238,255,249,244,234,263,219,299,242,252,228,251,233,225,254,237,236,232,226,221,248,231,245",
+				"show-price": 1,
+				"replaceable": false,
+				"selector-order-type": 4,
+				"retailers-order": 0,
+				"allow-new-retailers": 0,
+				"select-product": 1,
+				"select-brand": "39809,2910,17633,39808,20834,20835",
+				"all-retailers": 0,
+				"call-to-action": "Click to Add To Your &#xf07a",
+				"wtb-call-to-action": "Other store options",
+				"show-border": 1,
+				"show-shadow": 1,
+				"ec-catalog": 2
+			},
+			"relationships": {
+				"show-retailers": {
+					"data": [{
+							"type": "embedded-code-retailer",
+							"id": "5573"
+						}, {
+							"type": "embedded-code-retailer",
+							"id": "5574"
+						}, {
+							"type": "embedded-code-retailer",
+							"id": "5575"
+						}, {
+							"type": "embedded-code-retailer",
+							"id": "5576"
+						}, {
+							"type": "embedded-code-retailer",
+							"id": "5577"
+						}, {
+							"type": "embedded-code-retailer",
+							"id": "5578"
+						}
+					]
+				},
+				"products-allowed": {
+					"data": []
+				},
+				"embedded-code-style": {
+					"data": []
+				}
+			},
+			"links": {
+				"self": "\/embedded-code\/f03e3f7f-07b3-4a67-a833-1865b0579b62"
+			}
+		}
