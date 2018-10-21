@@ -2,12 +2,7 @@ import pandas as pd
 import requests as re
 import json
 
-#%% try read complex json file
-link = "https://api.smartcommerce.co/api/v1/widget/f03e3f7f-07b3-4a67-a833-1865b0579b62?sepmId=100372"
-dt_json = json.loads(re.get(link).text) # get the web dictionary
-
-
-# %% 
+# %% reorganized data into correct formate
 
 def organizeJson(jsonFile, Sepkey, rmkeys): # group list of dictionary by "type" key
     
@@ -16,7 +11,8 @@ def organizeJson(jsonFile, Sepkey, rmkeys): # group list of dictionary by "type"
     for ele in jsonFile[Sepkey]: # drill into first layer key: data, included
         
         eleN = ele.copy() # copy the element dictionary
-        key = eleN['type']
+        key = eleN['type'] # get the type of dictionary
+
         
         if key not in dt_dic.keys(): # create the dictionary key of type
             dt_dic[key] = []
@@ -38,6 +34,11 @@ def organizeJson(jsonFile, Sepkey, rmkeys): # group list of dictionary by "type"
         if key == 'product':
             if eleN['attributes']['more-info'] is None:
                 eleN['attributes']['more-info'] = "NA"
+            if eleN['attributes']['ean'] is None:
+                eleN['attributes']['ean'] = "NA"
+        if key == 'embedded-code':
+            eleN['attributes']['zip_detected'] = "NA"
+        
         
         # only export brand and retailer when included key
         if Sepkey == 'included':
@@ -53,9 +54,6 @@ def organizeJson(jsonFile, Sepkey, rmkeys): # group list of dictionary by "type"
             
         else:
             dt_dic[key].append(eleN)
-        
-    
-
     return(dt_dic)
 
 
@@ -68,9 +66,47 @@ def DClean(data): # merge list of dictionary into dataframe
     return(final_Dic)
 
 
-#%% create dictionary
-data_LS = DClean(organizeJson(dt_json, 'data', ['type', 'links']))
-inlcude_LS = DClean(organizeJson(dt_json, 'included', ['type']))
+
+#%%  main
+
+LinkDir = "D:/OPT/project/adult diaper/product_crawer/adult-diaper/Depends/source.txt"
+product_ls = [json.loads(re.get(l).text) for l in pd.read_table(LinkDir, header = None )[0]]
+
+data_ls = [DClean(organizeJson(data, 'data', ['type', 'links'])) for data in product_ls]
+included_ls = [DClean(organizeJson(data, 'included', ['type'])) for data in product_ls]
+
+
+#%%
+
+data_organized = {}
+for k in data_ls[0].keys():
+    data_organized[k] = list(data_organized[k] for data_organized in data_ls)
+
+include_organzed = {}
+for k in included_ls[0].keys():
+    include_organzed[k] = list(include_organzed[k] for include_organzed in included_ls)
+
+#%%
+data_dic = {}
+    
+for k in data_organized.keys():
+    data_dic[k] = pd.concat(data_organized[k])
+del data_organized
+
+include_dic = {}
+for k in include_organzed.keys():
+    include_dic[k] = pd.concat(include_organzed[k])
+del include_organzed
+
+
+
+
+
+
+
+    
+
+
 
 
 
