@@ -67,8 +67,9 @@ def DClean(data): # merge list of dictionary into dataframe
 
 
 
-#%%  main
+#%%  main 
 
+# file stores dowload link
 LinkDir = "D:/OPT/project/adult diaper/product_crawer/adult-diaper/Depends/source.txt"
 product_ls = [json.loads(re.get(l).text) for l in pd.read_table(LinkDir, header = None )[0]]
 
@@ -76,7 +77,7 @@ data_ls = [DClean(organizeJson(data, 'data', ['type', 'links'])) for data in pro
 included_ls = [DClean(organizeJson(data, 'included', ['type'])) for data in product_ls]
 
 
-#%%
+#%% reformate the list
 
 data_organized = {}
 for k in data_ls[0].keys():
@@ -86,7 +87,7 @@ include_organzed = {}
 for k in included_ls[0].keys():
     include_organzed[k] = list(include_organzed[k] for include_organzed in included_ls)
 
-#%%
+#%% create the final dictionary contain dataframe
 data_dic = {}
     
 for k in data_organized.keys():
@@ -97,6 +98,42 @@ include_dic = {}
 for k in include_organzed.keys():
     include_dic[k] = pd.concat(include_organzed[k])
 del include_organzed
+
+#%% organized the table
+
+#%% authentic product table
+
+data_dic['authentic-product'].columns = ['Image', 'Product_Name', 'AuthProduct_ID',
+       'Brand_ID', 'Brand_Name']
+
+data_dic['authentic-product']['Gender'] = ""
+
+#%%
+NameSplit_ser = data_dic['authentic-product']['Product_Name'].str.split(" ")
+
+#%%
+# put brand into Brand_Name column
+data_dic['authentic-product']['Brand_Name'] = [st[0] for st in NameSplit_ser]
+
+
+#%% extract the gender type
+gender_TFidx = data_dic['authentic-product']['Product_Name'].str.contains("for") # tf index
+gender_idx = [g.index("for") +1   for g in data_dic['authentic-product']['NameSplite'] if "for" in g] # number index
+data_dic['authentic-product']['Gender'][gender_TFidx] = [g[i] for g, i in zip(NameSplit_ser[gender_TFidx],gender_idx)]
+
+#%% removed the gender related element from NameSplit_ser
+for i ,(t,g) in enumerate(zip( gender_TFidx, gender_idx)):
+    if t:
+        del NameSplit_ser.iloc[i][gender_idx[i]-1:gender_idx[i]+1]
+    del NameSplit_ser.iloc[i][0]
+    
+
+#%% replace product name
+data_dic['authentic-product']['Product_Name'].str.replace("Depend","")
+
+
+
+
 
 
 
