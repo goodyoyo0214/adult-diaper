@@ -1,0 +1,10 @@
+https://api.smartcommerce.co/api/v1/widget/2c437744-ff60-4953-a42c-c8706ca1e975?upc=036000398151
+https://api.smartcommerce.co/api/v1/widget/2c437744-ff60-4953-a42c-c8706ca1e975?upc=036000193015
+https://api.smartcommerce.co/api/v1/widget/2c437744-ff60-4953-a42c-c8706ca1e975?upc=036000431186
+https://api.smartcommerce.co/api/v1/widget/2c437744-ff60-4953-a42c-c8706ca1e975?upc=036000199062
+https://api.smartcommerce.co/api/v1/widget/2c437744-ff60-4953-a42c-c8706ca1e975?upc=036000195866
+https://api.smartcommerce.co/api/v1/widget/2c437744-ff60-4953-a42c-c8706ca1e975?upc=036000431193
+https://api.smartcommerce.co/api/v1/widget/2c437744-ff60-4953-a42c-c8706ca1e975?upc=036000335941
+https://api.smartcommerce.co/api/v1/widget/2c437744-ff60-4953-a42c-c8706ca1e975?upc=036000431278
+https://api.smartcommerce.co/api/v1/widget/2c437744-ff60-4953-a42c-c8706ca1e975?upc=036000335927
+https://api.smartcommerce.co/api/v1/widget/2c437744-ff60-4953-a42c-c8706ca1e975?upc=036000474909

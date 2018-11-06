@@ -3,7 +3,15 @@ import requests as req
 import json
 import re
 import numpy as np
+import os
+import pickle as pk
 
+# Depends Dir
+#os.chdir("D:/OPT/project/adult diaper/product_crawer/adult-diaper/Depends/tables")
+
+
+# Poise Dir
+os.chdir("D:/OPT/project/adult diaper/product_crawer/adult-diaper/Poise/tables")
 
 # %% function for cleaning json file
 
@@ -105,8 +113,9 @@ def seperateProductName(StrData, BrandIncluded = True, tagetFeature = ["Color","
     result_dic = {"Brand":"", "Product_Name":"", "Gender":"", "Color":"", "Size":"","Absorb":"", "other":""}
     # dictionary for searching
     targetFeature_dic = { "Color": ['black','lavender','beige','grey','blue'], 
-                         "Absorb":['maximum','moderate'], 
-                         "Size":"^(l|m|xl|s)/?(l|m|xl|s)?$"}
+                         "Absorb":['maximum','moderate','ultimate','light'], 
+                         "Size":"^(l|m|xl|s)/?(l|m|xl|s)?$",
+                         "SizePad":['long','regular']}
     # mapping size to size abbreviate
     size_dic = {'median':'m', 'large':'l', "medium":"m", "small":"s"}
     # split string into list
@@ -132,15 +141,22 @@ def seperateProductName(StrData, BrandIncluded = True, tagetFeature = ["Color","
                               str_TFIdx = str_TFIdx,
                               nameIdx= nameIdx, 
                               key=i)
+        
     # update size if it is not abbreciate
     intersect_ls = intersect(str_ls,size_dic.keys())
     if intersect_ls:
         result_dic["Size"] = "/".join([size_dic[k] for k in intersect_ls]+[result_dic["Size"]]).upper()
         for i in intersect_ls:
             str_TFIdx[str_ls.index(i)] = False
-        
+      
+        # find the length of product
+    if ("length" in str_ls) or ("Length" in str_ls):
+        lengthIdx = str_ls.index("length")
+        result_dic["Size"] = str_ls[lengthIdx-1]
+        str_TFIdx[start_idx:lengthIdx] = [False]*len(str_TFIdx[start_idx:lengthIdx])
+        nameIdx = checkIdx(nameIdx,(lengthIdx-1))
     
-    # locate if for exist
+    # locate gender if for exist
     if "for" in str_ls:
         ForExist = True    
         forIndex = str_ls.index("for")
@@ -152,6 +168,9 @@ def seperateProductName(StrData, BrandIncluded = True, tagetFeature = ["Color","
     intIdx = [i for i, item in enumerate(str_ls) if re.search(r"\d", item)]
     if intIdx:
         nameIdx = checkIdx(nameIdx, intIdx[0])
+    
+
+        
 
     # get product name if no for exist    
     if not ForExist:
@@ -177,86 +196,121 @@ def getCount(StrData):
     if "pack" in Count_ls:
         resultDic["Pack"] = Count_ls[Count_ls.index("pack")-1]
     return(pd.DataFrame(resultDic, index = [0]))
+
+def organized(product_ls):
     
+    # the list of dictionary of data tag and included tag
+    data_ls = [DClean(organizeJson(data, 'data', ['type', 'links'])) for data in product_ls]
+    included_ls = [DClean(organizeJson(data, 'included', ['type'])) for data in product_ls]
+    
+    
+    # reformate the list
+    data_organized = {}
+    for k in data_ls[0].keys():
+        data_organized[k] = list(data_organized[k] for data_organized in data_ls)
+    
+    include_organzed = {}
+    for k in included_ls[0].keys():
+        include_organzed[k] = list(include_organzed[k] for include_organzed in included_ls)
+    
+    # create the final dictionary contain dataframe
+    data_dic = {}
+        
+    for k in data_organized.keys():
+        data_dic[k] = pd.concat(data_organized[k])
+    
+    
+    include_dic = {}
+    for k in include_organzed.keys():
+        include_dic[k] = pd.concat(include_organzed[k])
+    
+    return(data_dic, include_dic)
 #%%
-test_LS = ["16 ct 4 pack", "174 ct", "real fit incontinence briefs for men maximum absorbency small medium 20 count", "fit flex incontinence underwear for women maximum absorbency s tan packaging may vary"]  
+def athen_df(dataDic):
+    dataDic['authentic-product'].columns = ['Image', 'Product_Name_full', 'AuthProduct_ID',
+           'Brand_ID','Brand_Name']
+    dataDic['authentic-product'] = dataDic['authentic-product'].drop(columns = ['Brand_Name'])
+    
+    AuthenProd_df = dataDic['authentic-product'].drop_duplicates().reset_index()
+    
+    
+    AuthenProd_df = pd.concat([pd.concat([seperateProductName(x) for x in AuthenProd_df['Product_Name_full']]).reset_index(),
+                               AuthenProd_df],axis=1).drop(columns = ['index'])
+    # update index
+    AuthenProd_df.index = AuthenProd_df['AuthProduct_ID']
+    return(AuthenProd_df)    
 
-getCount(test_LS[2])
+def master_df(dataDic):
+    # master product table
+    dataDic['master-product'].columns = ['Count_pack', 'EAN', 'Image',
+           'Max_price', 'Min_price', 'Product_Name_full',
+           'Slug', 'UPC', 'MasterProduct_id', 'relationships.attributes',
+           'AuthenticProd_id',
+           'relationships.authentic-product.data.type',
+           'Family_ID', 'relationships.brand.data.type']
+    
+    # remove duplicate and reset index
+    MasterProd_df = dataDic['master-product'].drop_duplicates().reset_index()
+    
+    # reset index
+    MasterProd_df = MasterProd_df.drop(columns = ['index', 'relationships.attributes', 
+           'relationships.authentic-product.data.type',
+           'relationships.brand.data.type'])
+    
+    MasterProd_df = pd.concat([pd.concat([
+                               # seperate name into meaning ful column
+                               seperateProductName(x) for x in MasterProd_df['Product_Name_full']]).reset_index(),
+                               # divied the count and pack value
+                               pd.concat([getCount(x) for x in MasterProd_df['Count_pack']]).reset_index(),
+                               # the original MasterProd_df
+                               MasterProd_df],axis=1).reset_index().drop(columns = ['index','level_0'])
+    
+    # index by master product id for join later
+    MasterProd_df.index = MasterProd_df['MasterProduct_id']
+    return(MasterProd_df)
 
-#%%  main 
+def retailerDic(includeDic):
+    retailer_df = includeDic['retailer'].loc[:,['attributes.name','id']].drop_duplicates()
+    retailer_df.index = retailer_df['id']
+    return(retailer_df)
+
+def retailProd(dataDic, retailerMap):
+
+    retailProd_df = dataDic['product-retailer'].drop_duplicates().reset_index()
+    retailProd_df = retailProd_df.drop(columns = ['index', 'attributes.maximo', 'attributes.minimo', 'attributes.price-string',
+           'attributes.price-unit','relationships.master-product.data.type', 'relationships.retailer.data.type'])
+    
+    retailProd_df.columns = ['Link', 'Product_Name_full', 'Price', 'RetailerInter_id', 'Product_id', 'MasterProduct_id', 'Retailer_id']
+    retailProd_df['Retailer_name'] = retailProd_df['Retailer_id'].map(retailerMap['attributes.name'])
+    
+    #  check for duplicate master_id and retailer_id
+    retailProdMaxPrice_df = retailProd_df.groupby(['Retailer_id','Retailer_name','MasterProduct_id'],as_index=False )['Price'].max()
+    retailProdMaxPrice_PivDf = retailProdMaxPrice_df.pivot(index = 'MasterProduct_id', columns = 'Retailer_name', values = 'Price' )
+    return(retailProdMaxPrice_PivDf)
+#%%  Depends main 
 
 # file stores dowload link
 LinkDir = "D:/OPT/project/adult diaper/product_crawer/adult-diaper/Depends/source.txt"
 product_ls = [json.loads(req.get(l).text) for l in pd.read_table(LinkDir, header = None )[0]]
 
-# the list of dictionary of data tag and included tag
-data_ls = [DClean(organizeJson(data, 'data', ['type', 'links'])) for data in product_ls]
-included_ls = [DClean(organizeJson(data, 'included', ['type'])) for data in product_ls]
+
+#%% dump the file for future use
+with open("Depend_crawOrg_Ls", "wb") as fileHandle:
+    pk.dump(product_ls ,fileHandle)
 
 
-#%% reformate the list
 
-data_organized = {}
-for k in data_ls[0].keys():
-    data_organized[k] = list(data_organized[k] for data_organized in data_ls)
+#%%    
+data_dic, include_dic = organized(product_ls)
 
-include_organzed = {}
-for k in included_ls[0].keys():
-    include_organzed[k] = list(include_organzed[k] for include_organzed in included_ls)
 
-# create the final dictionary contain dataframe
-data_dic = {}
+# authentic product table
+AuthenProd_df = athen_df(data_dic)
     
-for k in data_organized.keys():
-    data_dic[k] = pd.concat(data_organized[k])
 
-
-include_dic = {}
-for k in include_organzed.keys():
-    include_dic[k] = pd.concat(include_organzed[k])
-
-
-#%% authentic product table
-
-data_dic['authentic-product'].columns = ['Image', 'Product_Name_full', 'AuthProduct_ID',
-       'Brand_ID','Brand_Name']
-data_dic['authentic-product'] = data_dic['authentic-product'].drop(columns = ['Brand_Name'])
-
-AuthenProd_df = data_dic['authentic-product'].drop_duplicates().reset_index()
-
-
-AuthenProd_df = pd.concat([pd.concat([seperateProductName(x) for x in AuthenProd_df['Product_Name_full']]).reset_index(),
-                           AuthenProd_df],axis=1).drop(columns = ['index'])
-# update index
-AuthenProd_df.index = AuthenProd_df['AuthProduct_ID']
-
-#%% master product table
-
-data_dic['master-product'].columns = ['Count_pack', 'EAN', 'Image',
-       'Max_price', 'Min_price', 'Product_Name_full',
-       'Slug', 'UPC', 'MasterProduct_id', 'relationships.attributes',
-       'AuthenticProd_id',
-       'relationships.authentic-product.data.type',
-       'Family_ID', 'relationships.brand.data.type']
-
-# remove duplicate and reset index
-MasterProd_df = data_dic['master-product'].drop_duplicates().reset_index()
-
-# reset index
-MasterProd_df = MasterProd_df.drop(columns = ['index', 'relationships.attributes', 
-       'relationships.authentic-product.data.type',
-       'relationships.brand.data.type'])
-
-MasterProd_df = pd.concat([pd.concat([
-                           # seperate name into meaning ful column
-                           seperateProductName(x) for x in MasterProd_df['Product_Name_full']]).reset_index(),
-                           # divied the count and pack value
-                           pd.concat([getCount(x) for x in MasterProd_df['Count_pack']]).reset_index(),
-                           # the original MasterProd_df
-                           MasterProd_df],axis=1).reset_index().drop(columns = ['index','level_0'])
-
-# index by master product id for join later
-MasterProd_df.index = MasterProd_df['MasterProduct_id']
+#%% master product
+# preprocess
+MasterProd_df = master_df(data_dic)
 
 # filling the missing color value
 MasterProd_df['Color'] = MasterProd_df['AuthenticProd_id'].map( MasterProd_df.groupby(['AuthenticProd_id'])['Color'].max())
@@ -279,38 +333,60 @@ MasterProd_df.loc[MasterProd_df['Gender'] == "", 'Gender'] = "Unisex"
 MasterProd_df.loc[MasterProd_df['Size'] =="", "Size"] = "One size fits all"
 
 
-#%% reference table for retail id to retail name
-
-retailer_df = include_dic['retailer'].loc[:,['attributes.name','id']].drop_duplicates()
-retailer_df.index = retailer_df['id']
+# reference table for retail id to retail name
 
 
-# %% retailer product 
+retailer_df = retailerDic(include_dic)
+# retailer product 
+retailProdMaxPrice_PivDf = retailProd(data_dic, retailer_df)
 
-retailProd_df = data_dic['product-retailer'].drop_duplicates().reset_index()
-retailProd_df = retailProd_df.drop(columns = ['index', 'attributes.maximo', 'attributes.minimo', 'attributes.price-string',
-       'attributes.price-unit','relationships.master-product.data.type', 'relationships.retailer.data.type'])
-
-retailProd_df.columns = ['Link', 'Product_Name_full', 'Price', 'RetailerInter_id', 'Product_id', 'MasterProduct_id', 'Retailer_id']
-retailProd_df['Retailer_name'] = retailProd_df['Retailer_id'].map(retailer_df['attributes.name'])
-
-# %% check for duplicate master_id and retailer_id
-retailProdMaxPrice_df = retailProd_df.groupby(['Retailer_id','Retailer_name','MasterProduct_id'],as_index=False )['Price'].max()
-retailProdMaxPrice_PivDf = retailProdMaxPrice_df.pivot(index = 'MasterProduct_id', columns = 'Retailer_name', values = 'Price' )
-
-#%%
 
 master_price = pd.merge(MasterProd_df, retailProdMaxPrice_PivDf, left_index = True, right_index = True,  how = "outer")
 master_price.index = master_price['AuthenticProd_id']
+master_price.to_csv("./Fianl.csv")
 
-#%% drop unasary column
+# drop unusery column
 
 Final_tbl = master_price.loc[:,['Product_Name_full','Product_Name','Family_ID','UPC','EAN','MasterProduct_id','AuthenticProd_id',
                           'Product_Name','Gender','Color','Size','Absorb','Count','Pack','Amazon','AmazonCanada',
                           'AmazonPrimePantry','BedBathAndBeyond','Bjs','Boxed','CVS','Costco','CostcoCanada',
                           'DollarGeneral','HEB','Instacart','Kroger','Rakuten',"Sam'sClub",'Target','Walgreens',
-                          'Walmart','WalmartCanada','Image']].reindex()
+                          'Walmart','WalmartCanada','Image']]
+
+Final_tbl.to_csv("./Fianl.csv")
+
+#%% Poise main
+
+# file stores dowload link
+LinkDir = "D:/OPT/project/adult diaper/product_crawer/adult-diaper/Poise/source.txt"
+poise_ls = [json.loads(req.get(l).text) for l in pd.read_table(LinkDir, header = None )[0]]
 
 
+#%% dump the file for future use
+with open("Poise_crawOrg_Ls", "wb") as fileHandle:
+    pk.dump(poise_ls ,fileHandle)
 
 
+#%% Authentic and master product basic table
+data_dic, include_dic = organized(poise_ls)
+    
+AuthenProd_df = athen_df(data_dic)
+
+#%%
+MasterProd_df = master_df(data_dic).sort_values(by = ['Product_Name','Size','Absorb','Count'])
+
+#%% master propduct data cleaning poise
+
+# update absorbacy
+MasterProd_df['Absorb'].loc[(MasterProd_df['Absorb'] == "") & (MasterProd_df["Product_Name"] == "microliners")] = "LIGHT"
+MasterProd_df['Absorb'].loc[(MasterProd_df['Absorb'] == "") & (MasterProd_df["Product_Name"] == "liners")] = "LIGHT"
+MasterProd_df['Absorb'].loc[(MasterProd_df['Absorb'] == "") & (MasterProd_df["Product_Name"] == "overnight pads")] = "OVERNIGHT"
+
+MasterProd_df['Size'].loc[(MasterProd_df['Size'] == "") & (MasterProd_df["Product_Name"] == "overnight pads")] = "regular"
+MasterProd_df['Size'].loc[(MasterProd_df['Size'] == "") & (MasterProd_df["Product_Name"] == "ultra thin pads")] = "regular"
+
+#%% retailer df 
+retailer_df = retailerDic(include_dic)
+
+
+retailProdMaxPrice_PivDf = retailProd(data_dic, retailer_df)
